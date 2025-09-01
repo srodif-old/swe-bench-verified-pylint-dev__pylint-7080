@@ -878,6 +878,7 @@ def test_by_module_statement_value(initialized_linter: PyLinter) -> None:
         ("--ignore-patterns", "ignored_*"),
         ("--ignore-paths", ".*directory/ignored.*"),
         ("--ignore-paths", ".*ignored.*/failing.*"),
+        ("--ignore-paths", ".*directory/package/.*module.*"),  # Test file-level ignore
     ],
 )
 def test_recursive_ignore(ignore_parameter, ignore_parameter_value) -> None:
@@ -897,19 +898,41 @@ def test_recursive_ignore(ignore_parameter, ignore_parameter_value) -> None:
     )
     linted_file_paths = [file_item.filepath for file_item in linted_files]
 
+    # Common ignored file for all test cases
     ignored_file = os.path.abspath(
         join(REGRTEST_DATA_DIR, "directory", "ignored_subdirectory", "failing.py")
     )
-    assert ignored_file not in linted_file_paths
-
-    for regrtest_data_module in (
-        ("directory", "subdirectory", "subsubdirectory", "module.py"),
-        ("directory", "subdirectory", "module.py"),
-        ("directory", "package", "module.py"),
-        ("directory", "package", "subpackage", "module.py"),
-    ):
-        module = os.path.abspath(join(REGRTEST_DATA_DIR, *regrtest_data_module))
-    assert module in linted_file_paths
+    
+    # Handle specific ignore patterns
+    if ignore_parameter_value == ".*directory/package/.*module.*":
+        # For this specific test case, package modules should be ignored
+        package_modules = [
+            os.path.abspath(join(REGRTEST_DATA_DIR, "directory", "package", "module.py")),
+            os.path.abspath(join(REGRTEST_DATA_DIR, "directory", "package", "subpackage", "module.py")),
+        ]
+        for package_module in package_modules:
+            assert package_module not in linted_file_paths
+        
+        # But other modules should still be present
+        for regrtest_data_module in (
+            ("directory", "subdirectory", "subsubdirectory", "module.py"),
+            ("directory", "subdirectory", "module.py"),
+        ):
+            module = os.path.abspath(join(REGRTEST_DATA_DIR, *regrtest_data_module))
+            assert module in linted_file_paths
+    else:
+        # For other test cases, the ignored file should not be present
+        assert ignored_file not in linted_file_paths
+        
+        # But package modules should be present
+        for regrtest_data_module in (
+            ("directory", "subdirectory", "subsubdirectory", "module.py"),
+            ("directory", "subdirectory", "module.py"),
+            ("directory", "package", "module.py"),
+            ("directory", "package", "subpackage", "module.py"),
+        ):
+            module = os.path.abspath(join(REGRTEST_DATA_DIR, *regrtest_data_module))
+            assert module in linted_file_paths
 
 
 def test_import_sibling_module_from_namespace(initialized_linter: PyLinter) -> None:
